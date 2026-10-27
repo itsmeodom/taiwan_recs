@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taipei Recs Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body, html {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styling */
+        #sidebar {
+            width: 360px;
+            height: 100%;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: #1a252f;
+            color: #ffffff;
+        }
+
+        .sidebar-header h2 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header p {
+            font-size: 13px;
+            color: #bdc3c7;
+        }
+
+        .filter-container {
+            padding: 12px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .filter-container select {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .place-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .place-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            margin-bottom: 4px;
+        }
+
+        .place-item:hover {
+            background-color: #f0f4f8;
+        }
+
+        .place-item h4 {
+            font-size: 15px;
+            color: #2c3e50;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .place-item p {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .category-badge {
+            display: inline-block;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: bold;
+            margin-top: 6px;
+            text-transform: uppercase;
+        }
+
+        /* Map Container */
+        #map-container {
+            flex: 1;
+            position: relative;
+            height: 100%;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Location Button */
+        #locate-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #2c3e50;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        #locate-btn:hover {
+            background-color: #f8f9fa;
+            border-color: #999;
+        }
+
+        /* Marker Styles */
+        .custom-pin {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            color: #fff;
+            text-align: center;
+            line-height: 30px;
+            font-size: 14px;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        .gold-star-marker {
+            background-color: #FFD700;
+            border: 2px solid #B8860B;
+            border-radius: 50%;
+            color: #000;
+            text-align: center;
+            line-height: 34px;
+            font-size: 18px;
+            box-shadow: 0 0 12px rgba(255, 215, 0, 0.9), 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        /* Popup Content */
+        .popup-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+
+        .popup-desc {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .gmaps-link {
+            display: inline-block;
+            font-size: 12px;
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .gmaps-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h2>Taipei Recommendations</h2>
+            <p>Curated Bars, Seafood, Eats & Sights</p>
+        </div>
+        <div class="filter-container">
+            <select id="category-filter" onchange="filterCategory(this.value)">
+                <option value="ALL">Show All Categories</option>
+                <option value="Hotel">⭐ Base (Grand Hyatt)</option>
+                <option value="Cocktail Bars & Speakeasies">🍸 Bars & Speakeasies</option>
+                <option value="Seafood & Japanese Dining">🍣 Seafood & Japanese</option>
+                <option value="Hotpot, Eats & Late-Night">🍲 Hotpot & Eats</option>
+                <option value="Sights & Attractions">🛍️ Sights & Day Trips</option>
+                <option value="Wellness & Transit">💆 Wellness & Transit</option>
+            </select>
+        </div>
+        <div class="place-list" id="place-list"></div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map-container">
+        <button id="locate-btn" onclick="locateUser()">
+            <i class="fa-solid fa-location-crosshairs"></i> Find My Location
+        </button>
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Category Colors mapping
+        const categoryColors = {
+            "Hotel": "#FFD700",
+            "Cocktail Bars & Speakeasies": "#8E44AD", // Purple
+            "Seafood & Japanese Dining": "#2980B9",  // Blue
+            "Hotpot, Eats & Late-Night": "#E67E22",  // Orange
+            "Sights & Attractions": "#27AE60",       // Green
+            "Wellness & Transit": "#16A085"          // Teal
+        };
+
+        const categoryIcons = {
+            "Hotel": "fa-star",
+            "Cocktail Bars & Speakeasies": "fa-martini-glass-citrus",
+            "Seafood & Japanese Dining": "fa-fish",
+            "Hotpot, Eats & Late-Night": "fa-utensils",
+            "Sights & Attractions": "fa-camera",
+            "Wellness & Transit": "fa-spa"
+        };
+
+        // Data array
+        const places = [
+            {
+                name: "Grand Hyatt Taipei (台北君悅酒店)",
+                category: "Hotel",
+                lat: 25.0357,
+                lng: 121.5614,
+                desc: "5-star luxury hotel in Xinyi District, situated adjacent to Taipei 101.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Grand+Hyatt+Taipei"
+            },
+            {
+                name: "Tei by obon 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0336,
+                lng: 121.5582,
+                desc: "Hidden tea-cocktail speakeasy with an immersive doorway experience, located right near Grand Hyatt.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Tei+by+obon+Taipei"
+            },
+            {
+                name: "Bar Pun 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0331,
+                lng: 121.5539,
+                desc: "Speakeasy tucked away down an alley, specializing in sensory, aroma-driven craft cocktails.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Bar+Pun+Taipei"
+            },
+            {
+                name: "Akira 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0332,
+                lng: 121.5541,
+                desc: "Intimate speakeasy bar environment located directly next door to Bar Pun in Da'an.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Akira+Bar+Taipei"
+            },
+            {
+                name: "WA-SHU 和酒 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0428,
+                lng: 121.5489,
+                desc: "Japanese cocktail laboratory focusing on single-flavor spirit extractions and precise mixology.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=WA-SHU+Taipei"
+            },
+            {
+                name: "Bar Mood 吧沐 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0426,
+                lng: 121.5458,
+                desc: "World-class dual-space cocktail bar consistently ranked among Asia's 50 Best Bars.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Bar+Mood+Taipei"
+            },
+            {
+                name: "Draft Land 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0416,
+                lng: 121.5513,
+                desc: "Pioneering tap-cocktail bar serving high-quality pre-batched draft drinks in a fast, casual setup.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Draft+Land+Taipei"
+            },
+            {
+                name: "Sip Sip Bar & Restaurant 🍸",
+                category: "Cocktail Bars & Speakeasies",
+                lat: 25.0441,
+                lng: 121.5295,
+                desc: "Relaxed day-to-night bistro and cocktail space inside Huashan 1914 Creative Park.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Sip+Sip+Bar+Restaurant+Taipei"
+            },
+            {
+                name: "Addiction Aquatic Development (上引水產)",
+                category: "Seafood & Japanese Dining",
+                lat: 25.0667,
+                lng: 121.5367,
+                desc: "Vibrant seafood complex featuring live tanks, standing sushi counters, chirashi, and a seafood grill.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Addiction+Aquatic+Development+Taipei"
+            },
+            {
+                name: "Chirashi Don Specialty (三味食堂 / 築地野台)",
+                category: "Seafood & Japanese Dining",
+                lat: 25.0408,
+                lng: 121.5050,
+                desc: "Famous destination for oversized fresh sashimi slices and rich chirashi bowls.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Sun+Way+Salmon+Sashimi+Ximending"
+            },
+            {
+                name: "Handrolls Specialty Bar",
+                category: "Seafood & Japanese Dining",
+                lat: 25.0423,
+                lng: 121.5471,
+                desc: "Gourmet seaweed handroll counter featuring sea urchin (uni), fatty tuna, and fresh seafood.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Handroll+Bar+Da-an+Taipei"
+            },
+            {
+                name: "TopOne Hotpot (頂紅風味小火鍋 / 鼎王)",
+                category: "Hotpot, Eats & Late-Night",
+                lat: 25.0338,
+                lng: 121.5642,
+                desc: "Premium spicy hotpot featuring rich broth bases, marbled beef slices, and duck blood tofu.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=TopOne+Hotpot+Taipei"
+            },
+            {
+                name: "Century Egg Noodles (劉漣麵 / 豬一十五)",
+                category: "Hotpot, Eats & Late-Night",
+                lat: 24.9789,
+                lng: 121.5414,
+                desc: "Unique Taiwanese dry tossed noodles coated in rich century egg sauce, minced pork, and chili.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=%E5%8A%89%E6%BC%A3%E9%BA%B5+%E6%96%B0%E5%BA%97"
+            },
+            {
+                name: "Weekend Chicken Club (週末炸雞俱樂部)",
+                category: "Hotpot, Eats & Late-Night",
+                lat: 25.0305,
+                lng: 121.5552,
+                desc: "Trendy late-night spot serving crispy Taiwanese fried chicken, sandos, and cold drinks in Xinyi.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Weekend+Chicken+Club+Taipei"
+            },
+            {
+                name: "Steakhouse Destination (Smith & Wollensky / A Cut)",
+                category: "Hotpot, Eats & Late-Night",
+                lat: 25.0354,
+                lng: 121.5662,
+                desc: "High-end steakhouse with panoramic skyline views requiring advance reservations.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Smith+Wollensky+Taipei"
+            },
+            {
+                name: "Huashan 1914 Creative Park",
+                category: "Sights & Attractions",
+                lat: 25.0441,
+                lng: 121.5294,
+                desc: "Historic former sake winery turned into a vibrant hub for art pop-ups, design shops, and cafes.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Huashan+1914+Creative+Park"
+            },
+            {
+                name: "Ximending Walking/Shopping District",
+                category: "Sights & Attractions",
+                lat: 25.0422,
+                lng: 121.5080,
+                desc: "Bustling pedestrian shopping neighborhood filled with streetwear brands, local snacks, and street performers.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Ximending+Walking+District"
+            },
+            {
+                name: "Raohe Night Market (饒河街觀光夜市)",
+                category: "Sights & Attractions",
+                lat: 25.0509,
+                lng: 121.5775,
+                desc: "One of Taipei's oldest night markets, famous for black pepper pork buns, herbal ribs, and street stalls.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Raohe+Street+Night+Market"
+            },
+            {
+                name: "Maokong Gondola to Tea Village",
+                category: "Sights & Attractions",
+                lat: 24.9683,
+                lng: 121.5882,
+                desc: "Scenic cable car route leading up into the tea plantations of Maokong for mountain-view tea tasting.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Maokong+Gondola"
+            },
+            {
+                name: "EasyCard Public Transit Hub",
+                category: "Wellness & Transit",
+                lat: 25.0478,
+                lng: 121.5170,
+                desc: "Main transit location for purchasing and recharging EasyCard for Metro, local buses, and YouBike.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Taipei+Main+Station"
+            },
+            {
+                name: "Taipei Massage Center",
+                category: "Wellness & Transit",
+                lat: 25.0435,
+                lng: 121.5440,
+                desc: "Traditional Taiwanese foot reflexology and full-body acupressure massage parlor.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Six+Star+Foot+Massage+Taipei"
+            },
+            {
+                name: "Hair Salon & Head Spa",
+                category: "Wellness & Transit",
+                lat: 25.0438,
+                lng: 121.5452,
+                desc: "Relaxing Taiwanese hair salon offering traditional head massages and blowout treatments.",
+                gmaps: "https://www.google.com/maps/search/?api=1&query=Hair+Salon+Daan+Taipei"
+            }
+        ];
+
+        // Initialize Map with Esri World Topo Map / ArcGIS tiles
+        const map = L.map('map').setView([25.0380, 121.5480], 13);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, IGN, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community',
+            maxZoom: 18
+        }).addTo(map);
+
+        const markers = [];
+
+        // Build Markers & Sidebar List
+        const listContainer = document.getElementById('place-list');
+
+        places.forEach((place, index) => {
+            let markerIcon;
+
+            if (place.category === "Hotel") {
+                // Gold Star Icon for Hyatt
+                markerIcon = L.divIcon({
+                    className: 'gold-star-marker',
+                    html: '<i class="fa-solid fa-star"></i>',
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18],
+                    popupAnchor: [0, -18]
+                });
+            } else {
+                // Category-based Icon Pins
+                const color = categoryColors[place.category] || "#34495E";
+                const iconClass = categoryIcons[place.category] || "fa-location-dot";
+                
+                markerIcon = L.divIcon({
+                    className: 'custom-pin-wrap',
+                    html: `<div class="custom-pin" style="background-color: ${color};"><i class="fa-solid ${iconClass}"></i></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15],
+                    popupAnchor: [0, -15]
+                });
+            }
+
+            const zIndex = place.category === "Hotel" ? 1000 : 100;
+
+            const marker = L.marker([place.lat, place.lng], { icon: markerIcon, zIndexOffset: zIndex }).addTo(map);
+
+            const popupContent = `
+                <div style="font-family: sans-serif; max-width: 230px;">
+                    <div class="popup-title">${place.name}</div>
+                    <div class="popup-desc">${place.desc}</div>
+                    <a href="${place.gmaps}" target="_blank" rel="noopener noreferrer" class="gmaps-link">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Google Maps
+                    </a>
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+
+            markers.push({
+                category: place.category,
+                marker: marker,
+                elementId: `item-${index}`
+            });
+
+            // Populate Sidebar Element
+            const item = document.createElement('div');
+            item.className = 'place-item';
+            item.id = `item-${index}`;
+            item.onclick = () => {
+                map.flyTo([place.lat, place.lng], 16, { duration: 1 });
+                marker.openPopup();
+            };
+
+            const catColor = categoryColors[place.category] || "#34495E";
+
+            item.innerHTML = `
+                <h4>${place.name}</h4>
+                <p>${place.desc}</p>
+                <span class="category-badge" style="background-color: ${catColor};">${place.category}</span>
+            `;
+
+            listContainer.appendChild(item);
+        });
+
+        // Category Filter logic
+        function filterCategory(category) {
+            markers.forEach(item => {
+                const sidebarElem = document.getElementById(item.elementId);
+                if (category === "ALL" || item.category === category) {
+                    item.marker.addTo(map);
+                    sidebarElem.style.display = "block";
+                } else {
+                    map.removeLayer(item.marker);
+                    sidebarElem.style.display = "none";
+                }
+            });
+        }
+
+        // Geolocation Functionality
+        let userMarker = null;
+        let userCircle = null;
+
+        function locateUser() {
+            if (!navigator.geolocation) {
+                alert("Geolocation is not supported by your browser.");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    if (userMarker) map.removeLayer(userMarker);
+                    if (userCircle) map.removeLayer(userCircle);
+
+                    userCircle = L.circle([lat, lng], {
+                        radius: accuracy,
+                        color: '#1A73E8',
+                        fillColor: '#1A73E8',
+                        fillOpacity: 0.15
+                    }).addTo(map);
+
+                    userMarker = L.circleMarker([lat, lng], {
+                        radius: 8,
+                        color: '#ffffff',
+                        weight: 2,
+                        fillColor: '#1A73E8',
+                        fillOpacity: 1
+                    }).addTo(map).bindPopup("<b>You are here</b>").openPopup();
+
+                    map.flyTo([lat, lng], 15, { duration: 1.2 });
+                },
+                (error) => {
+                    alert("Unable to retrieve your location. Please ensure location permissions are granted in your browser settings.");
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+    </script>
+</body>
+</html>
